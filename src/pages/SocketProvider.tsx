@@ -15,6 +15,8 @@ interface SocketContextType {
     isConnected: boolean;
 }
 
+const WEB_SOCKET_URL = import.meta.env.VITE_WS_URL || 'http://localhost:8080/ws';
+
 // 2. Initialize context with default values
 const SocketContext = createContext<SocketContextType>({
     client: new Client(), // This will be replaced by the provider, but we need to satisfy the type
@@ -27,7 +29,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     // 3. Add state specifically for the connection status
     const [isConnected, setIsConnected] = useState(false);
 
-    const socket = new SockJS("http://localhost:8080/ws");
+    const socket = new SockJS(WEB_SOCKET_URL);
     const clientInstance = new Client({
         webSocketFactory: () => socket,
         connectHeaders: { Authorization: `Bearer ${token}` },
