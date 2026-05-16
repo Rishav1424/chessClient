@@ -9,9 +9,10 @@ export const useStompClient = () => {
   const { token } = useAuthStore();
 
   useEffect(() => {
-
+    const webSocketUrl = import.meta.env.VITE_WS_URL || 'http://localhost:8080/ws';
+    console.log('WebSocket URL:', webSocketUrl);
     if (token && (!clientRef.current)) {
-      const socket = new SockJS(import.meta.env.VITE_WS_URL || 'http://localhost:8080/ws');
+      const socket = new SockJS(webSocketUrl);
       const clientInstance = new Client({
         webSocketFactory: () => socket,
         connectHeaders: {
