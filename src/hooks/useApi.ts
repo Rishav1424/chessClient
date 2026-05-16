@@ -3,7 +3,7 @@ import axios, { AxiosError, type AxiosRequestConfig, type Method } from 'axios';
 import { useAuthStore } from '@/store/useAuthStore';
 
 // Define the base URL for your Spring Boot Monolith
-const BASE_URL = 'http://localhost:8080/api';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 interface UseApiState {
   data: unknown;
