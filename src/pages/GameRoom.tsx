@@ -197,8 +197,6 @@ export default function GameRoom() {
                 options={{
                   position: position,
                   boardOrientation: isWhite ? 'white' : 'black',
-                  // @ts-ignore
-                  arePiecesDraggable: !gameOver,
                   onPieceDrop: onPieceDrop,
                 }}
               />
