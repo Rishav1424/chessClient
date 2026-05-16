@@ -4,15 +4,16 @@ import type { IFrame } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import { useAuthStore } from '@/store/useAuthStore';
 
+const WEB_SOCKET_URL = import.meta.env.VITE_WS_URL || 'http://localhost:8080/ws';
+
 export const useStompClient = () => {
   const clientRef = useRef<Client | null>(null);
   const { token } = useAuthStore();
 
   useEffect(() => {
-    const webSocketUrl = import.meta.env.VITE_WS_URL || 'http://localhost:8080/ws';
-    console.log('WebSocket URL:', webSocketUrl);
+    console.log('WebSocket URL:', WEB_SOCKET_URL);
     if (token && (!clientRef.current)) {
-      const socket = new SockJS(webSocketUrl);
+      const socket = new SockJS(WEB_SOCKET_URL);
       const clientInstance = new Client({
         webSocketFactory: () => socket,
         connectHeaders: {
