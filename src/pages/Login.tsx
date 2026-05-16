@@ -12,7 +12,6 @@ import { Link, useNavigate } from "react-router";
 import useApi from "../hooks/useApi";
 import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
-import { decodeJWT } from "@/lib/utils";
 
 export default function LoginForm() {
     const [username, setUsername] = useState<string>("");

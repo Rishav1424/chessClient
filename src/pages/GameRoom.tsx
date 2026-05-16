@@ -33,7 +33,7 @@ interface GameHistory {
 export default function GameRoom() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
-  const client = useStompClient();
+  const {client, isConnected} = useStompClient();
   const { username } = useAuthStore();
   const { get } = useApi();
 
@@ -48,10 +48,10 @@ export default function GameRoom() {
   const [gameOver, setGameOver] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [dialogTitle, setDialogTitle] = useState("");
-  const [dialogDescription, setDialogDescription] = useState("");
+  const [dialogTitle] = useState("");
+  const [dialogDescription] = useState("");
   const [drawOfferOpen, setDrawOfferOpen] = useState(false);
-  const [history, setHistory] = useState<GameHistory | null>(null);
+  const [history] = useState<GameHistory | null>(null);
 
   // FETCH INITIAL DATA
   useEffect(() => {
@@ -76,7 +76,7 @@ export default function GameRoom() {
   // SUBSCRIPTIONS
   useEffect(() => {
     // Only subscribe if we have a client AND it is connected
-    if (!client || !client.connected || !gameId) return;
+    if (!isConnected || !gameId) return;
 
     const moveSub = client.subscribe(`/topic/game/${gameId}/move`, (message) => {
       const incomingMove = message.body;
@@ -108,7 +108,7 @@ export default function GameRoom() {
       eventSub.unsubscribe();
       drawSub.unsubscribe();
     };
-  }, [client, gameId, game]); // Removed isWhite from dependencies to prevent resubscribing
+  }, [client, gameId, game]);
 
   // HANDLE PIECE MOVEMENT
   const onPieceDrop = ({ sourceSquare, targetSquare }: PieceDropHandlerArgs) => {
