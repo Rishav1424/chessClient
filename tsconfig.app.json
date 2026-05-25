@@ -25,7 +25,6 @@
 
     /* Project references */
     "composite": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./src/*"
