@@ -177,6 +177,7 @@ export default function GameRoom() {
             (message: { body: string }) => {
                 try {
                     const incomingMove = message.body;
+                    if(incomingMove == moveList[moveList.length - 1]) return; // Prevent duplicate move application
                     const result = game.move(incomingMove);
                     if (result) {
                         setPosition(game.fen());

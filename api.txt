@@ -55,7 +55,7 @@ Returns:       200 OK. Body contains JSON:
                  "blackPlayer": "player2",
                  "whiteTime": "PT3M", 
                  "blackTime": "PT3M",
-                 "lastMoveTime": "2026-03-29T01:18:43Z"
+                 "moves": ["e4", "e5", "Nf3"]
                }
 
 1.4 GET GAME HISTORY
@@ -67,13 +67,48 @@ Description:   Retrieves a game's persistent record from PostgreSQL.
 Returns:       200 OK. Body contains JSON:
                {
                  "id": 1,
-                 "whitePlayer": { "username": "player1", ... },
-                 "blackPlayer": { "username": "player2", ... },
+                 "whitePlayer": "player1",
+                 "blackPlayer": "player2",
                  "status": "ONGOING", 
                  "moves": ["e4", "e5", "Nf3"],
-                 "timestamp": "...",
-                 "updated": "..."
+                 "started": "...",
+                 "ended": "..."
                }
+
+1.5 GET User STATS
+---------------------
+Method:        GET
+Endpoint:      /api/user/me/stats
+Auth Required: Yes
+Description:   Retrieves statistics of the user.
+Returns:       200 OK. Body contains JSON:
+               {
+                "winAsWhite" : int,
+                "winAsBlack" : int,
+                "loseAsWhite" : int,
+                "loseAsBlack" : int,
+                "drawAsWhite" : int,
+                "drawAsBlack" : int,
+               }
+
+1.6 GET User Games
+---------------------
+Method:        GET
+Endpoint:      /api/user/me/games
+Auth Required: Yes
+Description:   Retrieves Last 10 games of user.
+Returns:       200 OK. Body contains Array of JSON:
+               [
+                {
+                 "id": 1,
+                 "whitePlayer": "player1",
+                 "blackPlayer": "player2",
+                 "status": "ONGOING", 
+                 "moves": ["e4", "e5", "Nf3"],
+                 "started": "...",
+                 "ended": "..."
+                }
+               ]
 
 
 ================================================================================
