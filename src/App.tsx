@@ -6,6 +6,8 @@ import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/Login";
 import RegisterPage from "./pages/Register";
 import GamePage from "./pages/Game";
+import WatchPage from "./pages/Watch";
+import ReviewPage from "./pages/Review";
 import Dashboard from "./pages/Dashboard";
 import ProtectedRoute from "./ProtectedRoute";
 import { useAuthStore } from "./store/useAuthStore";
@@ -20,7 +22,7 @@ function App() {
     useEffect(() => {
         if (token) {
             const payload = JSON.parse(atob(token.split('.')[1]));
-            if(payload.exp && payload.exp * 1000 < Date.now()) logout();
+            if (payload.exp && payload.exp * 1000 < Date.now()) logout();
             console.log(payload);
             connect(token);
         } else {
@@ -40,7 +42,9 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                <Route path="/game/:gameId" element={<ProtectedRoute><GamePage/></ProtectedRoute>} />
+                <Route path="/game/:gameId" element={<ProtectedRoute><GamePage /></ProtectedRoute>} />
+                <Route path="/watch/:gameId" element={<ProtectedRoute><WatchPage /></ProtectedRoute>} />
+                <Route path="/review/:gameId" element={<ProtectedRoute><ReviewPage /></ProtectedRoute>} />
             </Routes>
         </BrowserRouter>
     );

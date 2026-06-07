@@ -67,8 +67,8 @@ Description:   Retrieves a game's persistent record from PostgreSQL.
 Returns:       200 OK. Body contains JSON:
                {
                  "id": 1,
-                 "whitePlayer": "player1",
-                 "blackPlayer": "player2",
+                 "whitePlayerName": "player1",
+                 "blackPlayerName": "player2",
                  "status": "ONGOING", 
                  "moves": ["e4", "e5", "Nf3"],
                  "started": "...",
@@ -78,7 +78,7 @@ Returns:       200 OK. Body contains JSON:
 1.5 GET User STATS
 ---------------------
 Method:        GET
-Endpoint:      /api/user/me/stats
+Endpoint:      /api/users/me/stats
 Auth Required: Yes
 Description:   Retrieves statistics of the user.
 Returns:       200 OK. Body contains JSON:
@@ -94,7 +94,7 @@ Returns:       200 OK. Body contains JSON:
 1.6 GET User Games
 ---------------------
 Method:        GET
-Endpoint:      /api/user/me/games
+Endpoint:      /api/users/me/games
 Auth Required: Yes
 Description:   Retrieves Last 10 games of user.
 Returns:       200 OK. Body contains Array of JSON:
@@ -106,7 +106,7 @@ Returns:       200 OK. Body contains Array of JSON:
                  "status": "ONGOING", 
                  "moves": ["e4", "e5", "Nf3"],
                  "started": "...",
-                 "ended": "..."
+                 "finished": "..."
                 }
                ]
 

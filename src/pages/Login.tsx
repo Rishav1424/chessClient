@@ -12,6 +12,7 @@ import { Link, useNavigate } from "react-router";
 import useApi from "../hooks/useApi";
 import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
+import Logo from "@/components/Logo";
 
 export default function LoginForm() {
     const [username, setUsername] = useState<string>("");
@@ -30,32 +31,28 @@ export default function LoginForm() {
             toast.error(error);
             return;
         }
-        // const payload = decodeJWT(response);
-        // if (!payload || !payload.username) {
-        //     toast.error("Invalid token" + response);
-        //     return;
-        // }
         login(response, username);
         toast.success("Logged in successfully!");
         navigate("/dashboard");
     };
 
     return (
-        <div className="bg-muted flex min-h-svh flex-col items-center justify-center p-6 md:p-10">
+        <div className="bg-muted/30 dark:bg-background/95 flex min-h-svh flex-col items-center justify-center p-6 md:p-10">
             <div className="w-full max-w-sm md:max-w-4xl">
                 <div className="flex flex-col gap-6">
-                    <Card className="overflow-hidden p-0">
+                    <Card className="overflow-hidden p-0 border border-border/50 shadow-xl dark:shadow-primary/5 rounded-2xl bg-card/75 backdrop-blur-md">
                         <CardContent className="grid p-0 md:grid-cols-2">
                             <form
-                                className="p-6 md:p-8"
+                                className="p-8 md:p-10 flex flex-col justify-center"
                                 onSubmit={handleSubmit}>
-                                <FieldGroup>
+                                <FieldGroup className="gap-5">
                                     <div className="flex flex-col items-center gap-2 text-center">
-                                        <h1 className="text-2xl font-bold">
+                                        <Logo className="mb-2" />
+                                        <h1 className="text-2xl font-bold tracking-tight">
                                             Welcome back
                                         </h1>
-                                        <p className="text-muted-foreground text-balance">
-                                            Login to your Acme Inc account
+                                        <p className="text-muted-foreground text-sm text-balance">
+                                            Sign in to play chess with players worldwide
                                         </p>
                                     </div>
                                     <Field>
@@ -64,7 +61,7 @@ export default function LoginForm() {
                                         </FieldLabel>
                                         <Input
                                             id="username"
-                                            placeholder="user@123"
+                                            placeholder="Enter your username"
                                             required
                                             value={username}
                                             onChange={(e) =>
@@ -79,13 +76,14 @@ export default function LoginForm() {
                                             </FieldLabel>
                                             <a
                                                 href="#"
-                                                className="ml-auto text-sm underline-offset-2 hover:underline">
-                                                Forgot your password?
+                                                className="ml-auto text-xs text-primary hover:underline underline-offset-4">
+                                                Forgot password?
                                             </a>
                                         </div>
                                         <Input
                                             id="password"
                                             type="password"
+                                            placeholder="••••••••"
                                             required
                                             value={password}
                                             onChange={(e) =>
@@ -93,28 +91,29 @@ export default function LoginForm() {
                                             }
                                         />
                                     </Field>
-                                    <Field>
-                                        <Button type="submit">Login</Button>
+                                    <Field className="mt-2">
+                                        <Button type="submit" className="w-full font-bold shadow-md shadow-primary/20">Login</Button>
                                     </Field>
-                                    <FieldDescription className="text-center">
+                                    <FieldDescription className="text-center text-xs">
                                         Don&apos;t have an account?{" "}
-                                        <Link to="/register">Sign up</Link>
+                                        <Link to="/register" className="text-primary hover:underline font-medium">Sign up</Link>
                                     </FieldDescription>
                                 </FieldGroup>
                             </form>
-                            <div className="bg-muted relative hidden md:block">
+                            <div className="bg-muted relative hidden md:block select-none overflow-hidden">
                                 <img
-                                    src="https://images.unsplash.com/photo-1620632524020-484c0dcf230a?fm=jpg&q=60&w=3000&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1yZWxhdGVkfDE3fHx8ZW58MHx8fHx8"
-                                    alt="Image"
-                                    className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.8]"
+                                    src="/chess_auth_bg.png"
+                                    alt="Futuristic Chess Background"
+                                    className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.7] brightness-[0.9] transition-all duration-700 hover:scale-105"
                                 />
+                                <div className="absolute inset-0 bg-gradient-to-t from-background/45 to-transparent pointer-events-none" />
                             </div>
                         </CardContent>
                     </Card>
-                    <FieldDescription className="px-6 text-center">
+                    <FieldDescription className="px-6 text-center text-xs text-muted-foreground">
                         By clicking continue, you agree to our{" "}
-                        <a href="#">Terms of Service</a> and{" "}
-                        <a href="#">Privacy Policy</a>.
+                        <a href="#" className="hover:underline text-foreground/85">Terms of Service</a> and{" "}
+                        <a href="#" className="hover:underline text-foreground/85">Privacy Policy</a>.
                     </FieldDescription>
                 </div>
             </div>

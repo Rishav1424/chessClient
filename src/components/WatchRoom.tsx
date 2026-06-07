@@ -1,10 +1,6 @@
-import { useEffect, useState, useRef, type CSSProperties } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router";
-import {
-    type PieceDropHandlerArgs,
-    type SquareHandlerArgs,
-} from "react-chessboard";
-import { Chess, type Square } from "chess.js";
+import { Chess } from "chess.js";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -17,9 +13,8 @@ import {
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSocketStore } from "@/store/useSocketStore";
-import { useAuthStore } from "@/store/useAuthStore";
 import useApi from "@/hooks/useApi";
-import { Loader2, Flag, Handshake, ArrowLeft, Share2 } from "lucide-react";
+import { Loader2, ArrowLeft, Share2, RefreshCw, Eye } from "lucide-react";
 import PlayerCard from "./PlayerCard";
 import GameHistoryTable from "./GameHistoryTable";
 import GameHistoryBar from "./GameHistoryBar";
@@ -35,7 +30,6 @@ interface GameStatus {
     blackTime: string;
     moves: string[];
 }
-
 
 const parseISODuration = (duration: string): number => {
     if (!duration) return 0;
@@ -64,32 +58,27 @@ const formatEventString = (eventStr: string | null | undefined) => {
         .replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
-export default function GameRoom() {
+export default function WatchRoom() {
     const { gameId } = useParams();
     const navigate = useNavigate();
     const client = useSocketStore((state) => state.client);
     const isConnected: boolean = useSocketStore((state) => state.isConnected);
-    const { username } = useAuthStore();
     const { get } = useApi();
 
     const chessGameRef = useRef(new Chess());
     const game: Chess = chessGameRef.current;
 
     const [position, setPosition] = useState<string>(game.fen());
-    const [isWhite, setIsWhite] = useState<boolean>(true);
     const [gameOver, setGameOver] = useState<boolean>(false);
     const [loading, setLoading] = useState<boolean>(true);
     const [turn, setTurn] = useState<"w" | "b">("w");
     const [moveList, setMoveList] = useState<string[]>([]);
-    const historyEndRef = useRef<HTMLDivElement>(null);
 
-    // Advanced Board Interactions
-    const [moveFrom, setMoveFrom] = useState<string>("");
-    const [optionSquares, setOptionSquares] = useState<
-        Record<string, CSSProperties>
-    >({});
+    // Spectator settings
+    const [isFlipped, setIsFlipped] = useState<boolean>(false);
 
-    const [opponentName, setOpponentName] = useState("Opponent");
+    const [whitePlayerName, setWhitePlayerName] = useState("White");
+    const [blackPlayerName, setBlackPlayerName] = useState("Black");
 
     const [whiteTime, setWhiteTime] = useState(0);
     const [blackTime, setBlackTime] = useState(0);
@@ -97,7 +86,6 @@ export default function GameRoom() {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [dialogTitle, setDialogTitle] = useState("");
     const [dialogDescription, setDialogDescription] = useState("");
-    const [drawOfferOpen, setDrawOfferOpen] = useState(false);
 
     const isMobile = useIsMobile();
     const gameOverSoundPlayedRef = useRef(false);
@@ -110,19 +98,15 @@ export default function GameRoom() {
                     `/game/${gameId}/status`,
                 );
 
-                console.log("Game status loaded:", status);
+                console.log("Watch room: Game status loaded:", status);
 
                 if (status) {
                     game.load(status.fen);
                     setPosition(game.fen());
                     setTurn(game.turn() as "w" | "b");
 
-                    setIsWhite(status.whitePlayer === username);
-                    setOpponentName(
-                        status.whitePlayer === username
-                            ? status.blackPlayer
-                            : status.whitePlayer,
-                    );
+                    setWhitePlayerName(status.whitePlayer);
+                    setBlackPlayerName(status.blackPlayer);
 
                     setWhiteTime(parseISODuration(status.whiteTime));
                     setBlackTime(parseISODuration(status.blackTime));
@@ -151,12 +135,12 @@ export default function GameRoom() {
                     navigate("/dashboard");
                 }
             } catch (err) {
-                console.error("Error fetching game data", err);
+                console.error("Error fetching game data for watch room", err);
                 navigate("/dashboard");
             }
         };
         fetchGameData();
-    }, [gameId, game, username, get, navigate]);
+    }, [gameId, game, get, navigate]);
 
     useEffect(() => {
         if (gameOver || loading) return;
@@ -166,10 +150,6 @@ export default function GameRoom() {
         }, 1000);
         return () => clearInterval(intervalId);
     }, [turn, gameOver, loading]);
-
-    useEffect(() => {
-        historyEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [moveList]);
 
     useEffect(() => {
         if (!client || !isConnected || !gameId) return;
@@ -216,14 +196,12 @@ export default function GameRoom() {
                         setPosition(game.fen());
                         setTurn(game.turn() as "w" | "b");
                         setMoveList((prev) => [...prev, result.san]);
-                        setMoveFrom("");
-                        setOptionSquares({});
 
-                        // Play sound for incoming remote move
+                        // Play sound for incoming move
                         if (game.isGameOver()) {
                             if (game.isCheckmate()) {
                                 if (!gameOverSoundPlayedRef.current) {
-                                    playGameOverSound("lose"); // Opponent checkmated us
+                                    playGameOverSound("draw"); // Standard game over sound
                                     gameOverSoundPlayedRef.current = true;
                                 }
                             } else {
@@ -241,7 +219,7 @@ export default function GameRoom() {
                         }
                     }
                 } catch (e) {
-                    console.error("Move application error:", e);
+                    console.error("Move application error in watch room:", e);
                 }
             },
         );
@@ -256,204 +234,17 @@ export default function GameRoom() {
 
                 // Play game over sound based on event outcome
                 if (!gameOverSoundPlayedRef.current) {
-                    const eventStr = message.body.toUpperCase();
-                    if (eventStr.includes("DRAW")) {
-                        playGameOverSound("draw");
-                    } else if (eventStr.includes("WHITE_WON")) {
-                        playGameOverSound(isWhite ? "win" : "lose");
-                    } else if (eventStr.includes("BLACK_WON")) {
-                        playGameOverSound(!isWhite ? "win" : "lose");
-                    } else {
-                        playGameOverSound("draw");
-                    }
+                    playGameOverSound("draw");
                     gameOverSoundPlayedRef.current = true;
                 }
-            },
-        );
-
-        const drawSub = client.subscribe(
-            `/user/queue/game/${gameId}/draw-offer`,
-            () => {
-                setDrawOfferOpen(true);
-                toast.success("Your opponent has offered a draw.");
             },
         );
 
         return () => {
             moveSub.unsubscribe();
             eventSub.unsubscribe();
-            drawSub.unsubscribe();
         };
-    }, [client, isConnected, gameId, game, isWhite]);
-
-    const isPlayerTurn = () => {
-        const currentTurn = game.turn();
-        return !(
-            (currentTurn === "w" && !isWhite) ||
-            (currentTurn === "b" && isWhite)
-        );
-    };
-
-    const handleValidMove = (moveConfig: {
-        from: string;
-        to: string;
-        promotion?: string;
-    }) => {
-        try {
-            const move = game.move(moveConfig);
-            if (move === null) return false;
-
-            setPosition(game.fen());
-            setTurn(game.turn() as "w" | "b");
-            setMoveList((prev) => [...prev, move.san]);
-            setMoveFrom("");
-            setOptionSquares({});
-
-            // Play sound locally
-            if (game.isGameOver()) {
-                if (game.isCheckmate()) {
-                    if (!gameOverSoundPlayedRef.current) {
-                        playGameOverSound("win"); // We checkmated the opponent
-                        gameOverSoundPlayedRef.current = true;
-                    }
-                } else {
-                    if (!gameOverSoundPlayedRef.current) {
-                        playGameOverSound("draw");
-                        gameOverSoundPlayedRef.current = true;
-                    }
-                }
-            } else if (game.inCheck()) {
-                playCheckSound();
-            } else if (move.captured) {
-                playCaptureSound();
-            } else {
-                playMoveSound();
-            }
-
-            if (client && gameId) {
-                client.publish({
-                    destination: `/app/game/${gameId}/move`,
-                    body: move.from + move.to + (move.promotion || ""),
-                });
-            }
-            return true;
-        } catch (e) {
-            // Invalid move caught by chess.js
-            console.error("Invalid move attempted:", e);
-            return false;
-        }
-    };
-
-    const getMoveOptions = (square: Square) => {
-        const moves = game.moves({ square, verbose: true });
-        if (moves.length === 0) {
-            setOptionSquares({});
-            return false;
-        }
-
-        const newSquares: Record<string, React.CSSProperties> = {};
-        moves.map((move) => {
-            const isCapture =
-                game.get(move.to) &&
-                game.get(move.to)?.color !== game.get(square)?.color;
-
-            newSquares[move.to] = {
-                background: isCapture
-                    ? "radial-gradient(circle, transparent 55%, hsl(from var(--destructive) h s 50 / 0.6) 57%, hsl(from var(--destructive) h s 50 / 0.6) 68%, transparent 70%)"
-                    : "radial-gradient(circle, hsl(from var(--foreground) h s 50 / 0.22) 19%, transparent 22%)",
-            };
-        });
-        newSquares[square] = {
-            background: "hsl(from var(--foreground) h s 50 / 0.15)",
-        };
-        setOptionSquares(newSquares);
-        return true;
-    };
-
-    const onPieceDrop = ({
-        sourceSquare,
-        targetSquare,
-    }: PieceDropHandlerArgs) => {
-        console.log("Piece dropped from", sourceSquare, "to", targetSquare);
-        if (gameOver || !isPlayerTurn() || !targetSquare) return false;
-        return handleValidMove({
-            from: sourceSquare,
-            to: targetSquare,
-            promotion: "q",
-        });
-    };
-
-    const onSquareClick = ({ square, piece }: SquareHandlerArgs) => {
-        console.log(
-            "Square clicked:",
-            square,
-            "Piece on square:",
-            piece,
-            "gameOver:",
-            gameOver,
-            "isPlayerTurn:",
-            isPlayerTurn(),
-        );
-        if (gameOver || !isPlayerTurn()) return;
-
-        // Select a piece if none is selected
-        if (!moveFrom) {
-            const hasMoveOptions = getMoveOptions(square as Square);
-            if (hasMoveOptions) setMoveFrom(square);
-            return;
-        }
-
-        // Deselect if clicking the same square
-        if (square === moveFrom) {
-            setMoveFrom("");
-            setOptionSquares({});
-            return;
-        }
-
-        // Try to move
-        const moveObj = { from: moveFrom, to: square, promotion: "q" };
-        const moveSuccess = handleValidMove(moveObj);
-
-        // If move invalid, check if we clicked another piece of ours to select it instead
-        if (!moveSuccess) {
-            const hasMoveOptions = getMoveOptions(square as Square);
-            if (hasMoveOptions) setMoveFrom(square);
-            else {
-                setMoveFrom("");
-                setOptionSquares({});
-            }
-        }
-    };
-
-    const handleResign = () => {
-        console.log("Resign button clicked");
-        if (client && gameId)
-            client.publish({
-                destination: `/app/game/${gameId}/action`,
-                body: "RESIGN",
-            });
-    };
-
-    const handleOfferDraw = () => {
-        if (client && gameId) {
-            client.publish({
-                destination: `/app/game/${gameId}/action`,
-                body: "DRAW",
-            });
-            toast.success("Draw offer sent");
-        }
-    };
-
-    const handleAcceptDraw = () => {
-        setDrawOfferOpen(false);
-        if (client && gameId) {
-            client.publish({
-                destination: `/app/game/${gameId}/action`,
-                body: "DRAW",
-            });
-            toast.success("Draw offer accepted");
-        }
-    };
+    }, [client, isConnected, gameId, game]);
 
     if (loading)
         return (
@@ -464,13 +255,9 @@ export default function GameRoom() {
 
     const { whiteCaptured, blackCaptured, whiteAdvantage, blackAdvantage } = calculateCapturedPieces(game);
 
-    const movePairs = [];
-    for (let i = 0; i < moveList.length; i += 2)
-        movePairs.push({ w: moveList[i], b: moveList[i + 1] });
-
-    const topPlayerTimer = isWhite ? blackTime : whiteTime;
-    const bottomPlayerTimer = isWhite ? whiteTime : blackTime;
-    const bottomPlayerName = username || "You";
+    // Map time variables to side
+    const topPlayerTimer = isFlipped ? whiteTime : blackTime;
+    const bottomPlayerTimer = isFlipped ? blackTime : whiteTime;
 
     return (
         <div className="flex-1 min-h-0 p-2 md:p-4 lg:p-6 flex flex-col lg:flex-row gap-4 lg:gap-6 bg-background">
@@ -479,34 +266,34 @@ export default function GameRoom() {
                 <div className="flex-1 flex items-center justify-center h-full min-h-0">
                     <div className="max-h-full max-w-full aspect-square rounded-lg border-2 border-border/80 shadow-2xl dark:shadow-primary/5 relative overflow-hidden">
                         <GameChessboard
-                            id="PlayVsOpponent"
+                            id="WatchMatch"
                             position={position}
-                            boardOrientation={isWhite ? "white" : "black"}
-                            onPieceDrop={onPieceDrop}
-                            onSquareClick={onSquareClick}
-                            optionSquares={optionSquares}
+                            boardOrientation={isFlipped ? "black" : "white"}
+                            onPieceDrop={() => false}
+                            onSquareClick={() => { }}
+                            optionSquares={{}}
                             game={game}
                         />
                     </div>
                 </div>
             )}
 
-            {/* RIGHT SIDE / SIDEBAR (Moves History & Game Actions) */}
+            {/* RIGHT SIDE / SIDEBAR (Moves History & Spectator Actions) */}
             {isMobile ? (
                 <div className="w-full h-full flex flex-col gap-2.5 justify-between max-w-md mx-auto py-1">
-                    {/* Game Info Bar (Connection Status & Room Details) */}
+                    {/* Game Info Bar (Connection Status & Watch Room Details) */}
                     <div className="flex items-center justify-between px-3 py-1.5 rounded-lg border border-border/40 bg-muted/20 backdrop-blur-md select-none shrink-0">
                         <div className="flex items-center gap-1.5 shrink-0">
                             <span className="relative flex h-2 w-2">
                                 <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isConnected ? "bg-emerald-400" : "bg-destructive"}`}></span>
                                 <span className={`relative inline-flex rounded-full h-2 w-2 ${isConnected ? "bg-emerald-500" : "bg-destructive"}`}></span>
                             </span>
-                            <span className="text-[10px] font-bold tracking-wider uppercase text-muted-foreground">
-                                {isConnected ? "Live" : "Offline"}
+                            <span className="text-[10px] font-bold tracking-wider uppercase text-muted-foreground flex items-center gap-0.5">
+                                <Eye className="w-3 h-3 text-primary animate-pulse" /> Watch
                             </span>
                         </div>
                         <div className="font-bold text-[11px] text-foreground truncate px-2 text-center grow">
-                            {isWhite ? `${bottomPlayerName} vs ${opponentName}` : `${opponentName} vs ${bottomPlayerName}`}
+                            {whitePlayerName} vs {blackPlayerName}
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                             <button
@@ -515,7 +302,7 @@ export default function GameRoom() {
                                 onClick={() => {
                                     const watchLink = `${window.location.origin}/watch/${gameId}`;
                                     navigator.clipboard.writeText(watchLink);
-                                    toast.success("Spectator watch link copied!");
+                                    toast.success("Watch link copied!");
                                 }}
                             >
                                 <Share2 className="w-3.5 h-3.5" /> Share
@@ -523,15 +310,15 @@ export default function GameRoom() {
                         </div>
                     </div>
 
-                    {/* Top Player (Opponent) */}
+                    {/* Top Player */}
                     <PlayerCard
-                        name={opponentName}
-                        side={isWhite ? "Black" : "White"}
-                        turn={isWhite ? turn === "b" : turn === "w"}
+                        name={isFlipped ? whitePlayerName : blackPlayerName}
+                        side={isFlipped ? "White" : "Black"}
+                        turn={isFlipped ? turn === "w" : turn === "b"}
                         formattedTime={formatTime(topPlayerTimer)}
                         isSelf={false}
-                        capturedPieces={isWhite ? blackCaptured : whiteCaptured}
-                        advantage={isWhite ? blackAdvantage : whiteAdvantage}
+                        capturedPieces={isFlipped ? whiteCaptured : blackCaptured}
+                        advantage={isFlipped ? whiteAdvantage : blackAdvantage}
                     />
 
                     {/* Compact Moves Ribbon */}
@@ -540,67 +327,66 @@ export default function GameRoom() {
                     {/* Board container */}
                     <div className="w-full aspect-square rounded-lg border-2 border-border/80 shadow-xl dark:shadow-primary/5 relative overflow-hidden">
                         <GameChessboard
-                            id="PlayVsOpponentMobile"
+                            id="WatchMatchMobile"
                             position={position}
-                            boardOrientation={isWhite ? "white" : "black"}
-                            onPieceDrop={onPieceDrop}
-                            onSquareClick={onSquareClick}
-                            optionSquares={optionSquares}
+                            boardOrientation={isFlipped ? "black" : "white"}
+                            onPieceDrop={() => false}
+                            onSquareClick={() => { }}
+                            optionSquares={{}}
                             game={game}
                         />
                     </div>
 
-                    {/* Controls */}
                     <div className="flex gap-2 shrink-0">
                         <Button
-                            onClick={handleResign}
-                            variant="destructive"
+                            onClick={() => setIsFlipped(prev => !prev)}
+                            variant="outline"
                             className="flex-1 font-bold rounded-lg cursor-pointer py-3.5 flex items-center justify-center gap-1.5 text-xs"
-                            disabled={gameOver}>
-                            <Flag className="w-3.5 h-3.5" /> Resign
+                        >
+                            <RefreshCw className="w-3.5 h-3.5" /> Flip Board
                         </Button>
                         <Button
-                            onClick={handleOfferDraw}
-                            variant="outline"
-                            className="flex-1 font-bold rounded-lg cursor-pointer py-3.5 flex items-center justify-center gap-1.5 border-primary/20 hover:bg-primary/10 text-xs"
-                            disabled={gameOver}>
-                            <Handshake className="w-3.5 h-3.5 text-primary" /> Offer Draw
+                            onClick={() => navigate("/dashboard")}
+                            variant="secondary"
+                            className="flex-1 font-bold rounded-lg cursor-pointer py-3.5 flex items-center justify-center gap-1.5 text-xs"
+                        >
+                            <ArrowLeft className="w-3.5 h-3.5" /> Exit Watch
                         </Button>
                     </div>
 
-                    {/* Bottom Player (You) */}
+                    {/* Bottom Player */}
                     <PlayerCard
-                        name={bottomPlayerName}
-                        side={isWhite ? "White" : "Black"}
-                        turn={isWhite ? turn === "w" : turn === "b"}
+                        name={isFlipped ? blackPlayerName : whitePlayerName}
+                        side={isFlipped ? "Black" : "White"}
+                        turn={isFlipped ? turn === "b" : turn === "w"}
                         formattedTime={formatTime(bottomPlayerTimer)}
-                        isSelf={true}
-                        capturedPieces={isWhite ? whiteCaptured : blackCaptured}
-                        advantage={isWhite ? whiteAdvantage : blackAdvantage}
+                        isSelf={false}
+                        capturedPieces={isFlipped ? blackCaptured : whiteCaptured}
+                        advantage={isFlipped ? blackAdvantage : whiteAdvantage}
                     />
                 </div>
             ) : (
                 <div className="w-full lg:w-96 flex flex-col justify-between gap-4 shrink-0 min-h-0 h-full py-2">
-                    {/* Top Player (Opponent) */}
+                    {/* Top Player */}
                     <PlayerCard
-                        name={opponentName}
-                        side={isWhite ? "Black" : "White"}
-                        turn={isWhite ? turn === "b" : turn === "w"}
+                        name={isFlipped ? whitePlayerName : blackPlayerName}
+                        side={isFlipped ? "White" : "Black"}
+                        turn={isFlipped ? turn === "w" : turn === "b"}
                         formattedTime={formatTime(topPlayerTimer)}
                         isSelf={false}
-                        capturedPieces={isWhite ? blackCaptured : whiteCaptured}
-                        advantage={isWhite ? blackAdvantage : whiteAdvantage}
+                        capturedPieces={isFlipped ? whiteCaptured : blackCaptured}
+                        advantage={isFlipped ? whiteAdvantage : blackAdvantage}
                     />
 
-                    {/* Game Info Bar (Connection Status & Room Details) */}
+                    {/* Game Info Bar (Connection Status & Watch Room Details) */}
                     <div className="flex items-center justify-between px-4 py-2.5 rounded-lg border border-border/40 bg-muted/20 backdrop-blur-md select-none shrink-0">
                         <div className="flex items-center gap-2">
                             <span className="relative flex h-2.5 w-2.5">
                                 <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isConnected ? "bg-emerald-400" : "bg-destructive"}`}></span>
                                 <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isConnected ? "bg-emerald-500" : "bg-destructive"}`}></span>
                             </span>
-                            <span className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
-                                {isConnected ? "Live Connection" : "Offline"}
+                            <span className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground flex items-center gap-1">
+                                <Eye className="w-3.5 h-3.5 text-primary" /> Spectating
                             </span>
                         </div>
                         <div className="flex items-center gap-3">
@@ -612,9 +398,8 @@ export default function GameRoom() {
                                 title="Copy Watch Link"
                                 className="flex items-center gap-1 text-[11px] font-bold text-primary hover:text-primary/80 transition-colors uppercase cursor-pointer"
                                 onClick={() => {
-                                    const watchLink = `${window.location.origin}/watch/${gameId}`;
-                                    navigator.clipboard.writeText(watchLink);
-                                    toast.success("Spectator watch link copied!");
+                                    navigator.clipboard.writeText(window.location.href);
+                                    toast.success("Watch link copied to clipboard!");
                                 }}
                             >
                                 <Share2 className="w-3.5 h-3.5" /> Share
@@ -625,35 +410,35 @@ export default function GameRoom() {
                     {/* Match Timeline Card */}
                     <GameHistoryTable moves={moveList} />
 
-                    {/* Compact Controls */}
+                    {/* Spectator Controls */}
                     <div className="flex gap-2 shrink-0">
                         <Button
-                            onClick={handleResign}
-                            variant="destructive"
-                            size="lg"
-                            className="flex-1"
-                            disabled={gameOver}>
-                            <Flag /> Resign
-                        </Button>
-                        <Button
-                            onClick={handleOfferDraw}
+                            onClick={() => setIsFlipped(prev => !prev)}
                             variant="outline"
                             size="lg"
-                            className="flex-1"
-                            disabled={gameOver}>
-                            <Handshake /> Offer Draw
+                            className="flex-1 font-bold cursor-pointer flex items-center justify-center gap-2"
+                        >
+                            <RefreshCw className="w-4 h-4" /> Flip Board
+                        </Button>
+                        <Button
+                            onClick={() => navigate("/dashboard")}
+                            variant="secondary"
+                            size="lg"
+                            className="flex-1 font-bold cursor-pointer flex items-center justify-center gap-2"
+                        >
+                            <ArrowLeft className="w-4 h-4" /> Exit Watch
                         </Button>
                     </div>
 
-                    {/* Bottom Player (You) */}
+                    {/* Bottom Player */}
                     <PlayerCard
-                        name={bottomPlayerName}
-                        side={isWhite ? "White" : "Black"}
-                        turn={isWhite ? turn === "w" : turn === "b"}
+                        name={isFlipped ? blackPlayerName : whitePlayerName}
+                        side={isFlipped ? "Black" : "White"}
+                        turn={isFlipped ? turn === "b" : turn === "w"}
                         formattedTime={formatTime(bottomPlayerTimer)}
-                        isSelf={true}
-                        capturedPieces={isWhite ? whiteCaptured : blackCaptured}
-                        advantage={isWhite ? whiteAdvantage : blackAdvantage}
+                        isSelf={false}
+                        capturedPieces={isFlipped ? blackCaptured : whiteCaptured}
+                        advantage={isFlipped ? blackAdvantage : whiteAdvantage}
                     />
                 </div>
             )}
@@ -675,35 +460,6 @@ export default function GameRoom() {
                             Exit to Dashboard
                         </Button>
                     </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            <Dialog open={drawOfferOpen} onOpenChange={setDrawOfferOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>
-                            <Handshake /> Draw Offered
-                        </DialogTitle>
-                        <DialogDescription>
-                            Your opponent has offered a draw. How would you like
-                            to proceed?
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="flex gap-3 mt-6">
-                        <Button
-                            size="lg"
-                            onClick={handleAcceptDraw}
-                            className="flex-1 font-bold">
-                            Accept Draw
-                        </Button>
-                        <Button
-                            size="lg"
-                            onClick={() => setDrawOfferOpen(false)}
-                            variant="secondary"
-                            className="flex-1 font-bold">
-                            Decline
-                        </Button>
-                    </div>
                 </DialogContent>
             </Dialog>
         </div>
