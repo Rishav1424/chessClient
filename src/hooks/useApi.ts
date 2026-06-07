@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import axios, { AxiosError, type AxiosRequestConfig, type Method } from 'axios';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useNavigate } from 'react-router';
 
 // Define the base URL for your Spring Boot Monolith
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -12,12 +13,14 @@ interface UseApiState {
 }
 
 export default () => {
-  const token = useAuthStore((state) => state.token);
+  const token = useAuthStore(state => state.token);
+  const logout = useAuthStore(state => state.logout);
   const [state, setState] = useState<UseApiState>({
     data: null,
     error: null,
     loading: false,
   });
+  const navigate = useNavigate();
 
   const request = useCallback(
     async <T>(
@@ -46,6 +49,11 @@ export default () => {
         return response.data;
       } catch (err) {
         const axiosError = err as AxiosError<{ message?: string }>;
+        if (axiosError.response?.status === 401) {
+          logout();
+          navigate("/login");
+          return null;
+        }
         const errorMessage =
           axiosError.response?.data?.message || 'An unexpected error occurred';
 

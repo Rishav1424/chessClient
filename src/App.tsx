@@ -20,6 +20,10 @@ function App() {
     const disconnect = useSocketStore((state) => state.disconnect);
 
     useEffect(() => {
+        document.body.classList.remove("dark");
+    }, []);
+
+    useEffect(() => {
         if (token) {
             const payload = JSON.parse(atob(token.split('.')[1]));
             if (payload.exp && payload.exp * 1000 < Date.now()) logout();

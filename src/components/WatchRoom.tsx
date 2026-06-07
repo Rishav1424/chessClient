@@ -16,11 +16,13 @@ import { useSocketStore } from "@/store/useSocketStore";
 import useApi from "@/hooks/useApi";
 import { Loader2, ArrowLeft, Share2, RefreshCw, Eye } from "lucide-react";
 import PlayerCard from "./PlayerCard";
-import GameHistoryTable from "./GameHistoryTable";
-import GameHistoryBar from "./GameHistoryBar";
+import MoveHistoryTable from "./MoveHistoryTable";
+import MoveHistoryBar from "./MoveHistoryBar";
 import GameChessboard from "./GameChessboard";
-import { playMoveSound, playCaptureSound, playCheckSound, playGameOverSound } from "@/lib/audio";
+import { playGameOverSound } from "@/lib/audio";
 import { calculateCapturedPieces } from "@/lib/chess";
+import { useGameMoves } from "@/hooks/useGameMoves";
+import { useCallback } from "react";
 
 interface GameStatus {
     fen: string;
@@ -151,78 +153,16 @@ export default function WatchRoom() {
         return () => clearInterval(intervalId);
     }, [turn, gameOver, loading]);
 
+    const handleRemoteMove = useCallback((result: any) => {
+        setPosition(game.fen());
+        setTurn(game.turn() as "w" | "b");
+        setMoveList((prev) => [...prev, result.san]);
+    }, [game]);
+
+    useGameMoves(gameId, game, handleRemoteMove);
+
     useEffect(() => {
         if (!client || !isConnected || !gameId) return;
-
-        const moveSub = client.subscribe(
-            `/topic/game/${gameId}/move`,
-            (message: { body: string }) => {
-                try {
-                    const incomingMove = message.body;
-
-                    // Defensive parsing of UCI strings and serialized JSON objects
-                    let targetMove: any = incomingMove;
-                    if (typeof incomingMove === "string" && incomingMove.trim().startsWith("{")) {
-                        try {
-                            const obj = JSON.parse(incomingMove);
-                            if (obj.from && obj.to) {
-                                targetMove = {
-                                    from: obj.from,
-                                    to: obj.to,
-                                    promotion: obj.promotion || undefined
-                                };
-                            }
-                        } catch (err) {
-                            console.error("Defensive move JSON parse error:", err);
-                        }
-                    }
-
-                    // Prevent duplicate move application by comparing with local history
-                    const movesHistory = game.history({ verbose: true });
-                    const lastMove = movesHistory[movesHistory.length - 1];
-                    if (lastMove) {
-                        const lastUciMove = lastMove.from + lastMove.to + (lastMove.promotion || "");
-                        const incomingUciString = typeof targetMove === "string"
-                            ? targetMove
-                            : (targetMove.from + targetMove.to + (targetMove.promotion || ""));
-
-                        if (lastUciMove === incomingUciString) {
-                            return; // Already applied locally!
-                        }
-                    }
-
-                    const result = game.move(targetMove);
-                    if (result) {
-                        setPosition(game.fen());
-                        setTurn(game.turn() as "w" | "b");
-                        setMoveList((prev) => [...prev, result.san]);
-
-                        // Play sound for incoming move
-                        if (game.isGameOver()) {
-                            if (game.isCheckmate()) {
-                                if (!gameOverSoundPlayedRef.current) {
-                                    playGameOverSound("draw"); // Standard game over sound
-                                    gameOverSoundPlayedRef.current = true;
-                                }
-                            } else {
-                                if (!gameOverSoundPlayedRef.current) {
-                                    playGameOverSound("draw");
-                                    gameOverSoundPlayedRef.current = true;
-                                }
-                            }
-                        } else if (game.inCheck()) {
-                            playCheckSound();
-                        } else if (result.captured) {
-                            playCaptureSound();
-                        } else {
-                            playMoveSound();
-                        }
-                    }
-                } catch (e) {
-                    console.error("Move application error in watch room:", e);
-                }
-            },
-        );
 
         const eventSub = client.subscribe(
             `/topic/game/${gameId}/event`,
@@ -241,10 +181,9 @@ export default function WatchRoom() {
         );
 
         return () => {
-            moveSub.unsubscribe();
             eventSub.unsubscribe();
         };
-    }, [client, isConnected, gameId, game]);
+    }, [client, isConnected, gameId]);
 
     if (loading)
         return (
@@ -322,7 +261,7 @@ export default function WatchRoom() {
                     />
 
                     {/* Compact Moves Ribbon */}
-                    <GameHistoryBar moves={moveList} />
+                    <MoveHistoryBar moves={moveList} />
 
                     {/* Board container */}
                     <div className="w-full aspect-square rounded-lg border-2 border-border/80 shadow-xl dark:shadow-primary/5 relative overflow-hidden">
@@ -408,7 +347,7 @@ export default function WatchRoom() {
                     </div>
 
                     {/* Match Timeline Card */}
-                    <GameHistoryTable moves={moveList} />
+                    <MoveHistoryTable moves={moveList} />
 
                     {/* Spectator Controls */}
                     <div className="flex gap-2 shrink-0">

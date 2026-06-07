@@ -55,7 +55,7 @@ Returns:       200 OK. Body contains JSON:
                  "blackPlayer": "player2",
                  "whiteTime": "PT3M", 
                  "blackTime": "PT3M",
-                 "moves": ["e4", "e5", "Nf3"]
+                 "moves": ["e2e4", "e7e5", "g1f3"]
                }
 
 1.4 GET GAME HISTORY
@@ -70,7 +70,7 @@ Returns:       200 OK. Body contains JSON:
                  "whitePlayerName": "player1",
                  "blackPlayerName": "player2",
                  "status": "ONGOING", 
-                 "moves": ["e4", "e5", "Nf3"],
+                 "moves": ["e2e4", "e7e5", "g1f3"],
                  "started": "...",
                  "ended": "..."
                }
@@ -101,10 +101,10 @@ Returns:       200 OK. Body contains Array of JSON:
                [
                 {
                  "id": 1,
-                 "whitePlayer": "player1",
-                 "blackPlayer": "player2",
+                 "whitePlayerName": "player1",
+                 "blackPlayerName": "player2",
                  "status": "ONGOING", 
-                 "moves": ["e4", "e5", "Nf3"],
+                 "moves": ["e2e4", "e7e5", "g1f3"],
                  "started": "...",
                  "finished": "..."
                 }
@@ -129,8 +129,10 @@ Payload:     None.
 
 Action:      Submit a Move
 Destination: /app/game/{gameId}/move
-Payload:     String containing the move in Standard Algebraic Notation 
-             (e.g., "e2e4").
+Payload:     String containing the move in UCI notation
+             (e.g., "e2e4", "e7e5", "g1f3", "e1g1" for kingside castle).
+             For promotions, append the piece character
+             (e.g., "e7e8q" for queen promotion).
 
 Action:      Game Actions (Resign/Draw)
 Destination: /app/game/{gameId}/action
@@ -151,8 +153,12 @@ Receives:    JSON containing match details.
 
 Event:       Opponent's Move Broadcast
 Topic:       /topic/game/{gameId}/move
-Receives:    JSON Move object from chesslib containing move details 
-             (from, to, piece, promotion, etc.).
+Receives:    Plain text string containing the move in UCI notation
+             (e.g., "e2e4", "e7e5", "e1g1" for castling).
+             For promotions, the promoted piece is appended as a lowercase
+             character (e.g., "e7e8q" for queen promotion).
+             Both players receive this broadcast; clients are responsible
+             for deduplicating moves they applied locally.
 
 Event:       Game Over / Status Event
 Topic:       /topic/game/{gameId}/event

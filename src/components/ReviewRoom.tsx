@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router";
 import { Chess } from "chess.js";
 import { Button } from "@/components/ui/button";
@@ -17,8 +17,8 @@ import {
     Swords,
 } from "lucide-react";
 import PlayerCard from "./PlayerCard";
-import GameHistoryTable from "./GameHistoryTable";
-import GameHistoryBar from "./GameHistoryBar";
+import MoveHistoryTable from "./MoveHistoryTable";
+import MoveHistoryBar from "./MoveHistoryBar";
 import GameChessboard from "./GameChessboard";
 import { playMoveSound, playCaptureSound, playCheckSound, playGameOverSound } from "@/lib/audio";
 import { calculateCapturedPieces } from "@/lib/chess";
@@ -137,23 +137,16 @@ export default function ReviewRoom() {
             </div>
         );
 
-    const getDisplayChessGame = () => {
-        const activeGame = new Chess();
-        for (let i = 0; i < activeMoveIndex; i++) {
-            const move = moveList[i];
-            if (move) {
-                try {
-                    activeGame.move(move);
-                } catch {
-                    // Ignore parsing errors
-                }
-            }
+    const displayChessGame = useMemo(() => {
+        const g = new Chess();
+        const fen = fens[activeMoveIndex];
+        if (fen) {
+            g.load(fen);
         }
-        return activeGame;
-    };
+        return g;
+    }, [activeMoveIndex, fens]);
 
-    const displayChessGame = getDisplayChessGame();
-    const currentPosition = displayChessGame.fen();
+    const currentPosition = fens[activeMoveIndex];
 
     const { whiteCaptured, blackCaptured, whiteAdvantage, blackAdvantage } = calculateCapturedPieces(displayChessGame);
 
@@ -209,7 +202,7 @@ export default function ReviewRoom() {
                     />
 
                     {/* Compact Moves Ribbon */}
-                    <GameHistoryBar
+                    <MoveHistoryBar
                         moves={moveList}
                         activeMoveIndex={activeMoveIndex - 1}
                         onMoveClick={(flatIndex) => setActiveMoveIndex(flatIndex + 1)}
@@ -318,7 +311,7 @@ export default function ReviewRoom() {
                     </div>
 
                     {/* Match Timeline Card */}
-                    <GameHistoryTable
+                    <MoveHistoryTable
                         moves={moveList}
                         activeMoveIndex={activeMoveIndex - 1}
                         onMoveClick={(flatIndex) => setActiveMoveIndex(flatIndex + 1)}

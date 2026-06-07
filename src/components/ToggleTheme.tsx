@@ -1,31 +1,17 @@
-import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 import { Button } from "./ui/button";
 import { Moon, Sun } from "lucide-react";
 
 const ToggleTheme = () => {
-    const [darkMode, setDarkMode] = useState<boolean>(() => {
-        const saved = localStorage.getItem("theme");
-        if (saved) {
-            return saved === "dark";
-        }
-        return document.body.classList.contains("dark");
-    });
+    const { setTheme, resolvedTheme } = useTheme();
 
-    useEffect(() => {
-        if (darkMode) {
-            document.body.classList.add("dark");
-            localStorage.setItem("theme", "dark");
-        } else {
-            document.body.classList.remove("dark");
-            localStorage.setItem("theme", "light");
-        }
-    }, [darkMode]);
-
-    const toggle = () => setDarkMode((prev) => !prev);
+    const toggle = () => {
+        setTheme(resolvedTheme === "dark" ? "light" : "dark");
+    };
 
     return (
         <Button variant="ghost" onClick={toggle} size="icon-lg" aria-label="Toggle Theme">
-            {darkMode ? (
+            {resolvedTheme === "dark" ? (
                 <Sun className=" text-amber-500 animate-pulse" />
             ) : (
                 <Moon className=" text-slate-700 dark:text-slate-200" />

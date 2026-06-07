@@ -24,7 +24,7 @@ export const GameHistoryCard: React.FC<GameHistoryCardProps> = ({ games, isLoadi
     const getGameResult = (game: PastGame) => {
         if (game.status === "ONGOING" || game.status === null) return "ONGOING";
 
-        const whitePlayer = game.whitePlayerName || (game as any).whitePlayer;
+        const whitePlayer = game.whitePlayerName;
         const isWhitePlayer = whitePlayer === username;
         const status = game?.status.toUpperCase();
 
@@ -87,8 +87,8 @@ export const GameHistoryCard: React.FC<GameHistoryCardProps> = ({ games, isLoadi
                             <TableBody>
                                 {games.map((game) => {
                                     const result = getGameResult(game);
-                                    const whitePlayer = game.whitePlayerName || (game as any).whitePlayer;
-                                    const blackPlayer = game.blackPlayerName || (game as any).blackPlayer;
+                                    const whitePlayer = game.whitePlayerName;
+                                    const blackPlayer = game.blackPlayerName;
                                     const isWhite = whitePlayer === username;
                                     const opponent = isWhite ? blackPlayer : whitePlayer;
                                     const duration = new Date(game.finished).getTime() - new Date(game.started).getTime();

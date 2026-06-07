@@ -18,12 +18,12 @@ export default function SignupForm() {
     const [email, setEmail] = useState<string>("");
     const [password, setPassword] = useState<string>("");
     const [confirmPassword, setConfirmPassword] = useState<string>("");
-    const {post, data, error} = useApi();
+    const { post, data, error } = useApi();
     const navigate = useNavigate();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if(password !== confirmPassword) {
+        if (password !== confirmPassword) {
             toast.error("Passwords do not match");
             return;
         }
@@ -39,7 +39,7 @@ export default function SignupForm() {
         if (error) {
             toast.error(error);
         }
-        else if(data) {
+        else if (data) {
             toast.success("Account created successfully! Please log in.");
             navigate("/login");
         }
@@ -138,7 +138,7 @@ export default function SignupForm() {
                                     alt="Futuristic Chess Background"
                                     className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.7] brightness-[0.9] transition-all duration-700 hover:scale-105"
                                 />
-                                <div className="absolute inset-0 bg-gradient-to-t from-background/45 to-transparent pointer-events-none" />
+                                <div className="absolute inset-0 bg-linear-to-t from-background/45 to-transparent pointer-events-none" />
                             </div>
                         </CardContent>
                     </Card>

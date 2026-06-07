@@ -11,8 +11,12 @@
       (function() {
         const saved = localStorage.getItem("theme");
         if (saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
-          document.body.classList.add("dark");
+          document.documentElement.classList.add("dark");
         } else {
+          document.documentElement.classList.remove("dark");
+        }
+        // Cleanup stale body dark class from previous implementation
+        if (document.body) {
           document.body.classList.remove("dark");
         }
       })();

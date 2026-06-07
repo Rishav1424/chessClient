@@ -1,9 +1,6 @@
-import { useEffect, useState, useRef, type CSSProperties } from "react";
+import { useEffect, useState, useRef, useCallback, type CSSProperties } from "react";
 import { useParams, useNavigate } from "react-router";
-import {
-    type PieceDropHandlerArgs,
-    type SquareHandlerArgs,
-} from "react-chessboard";
+import { type PieceDropHandlerArgs, type SquareHandlerArgs } from "react-chessboard";
 import { Chess, type Square } from "chess.js";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,11 +18,12 @@ import { useAuthStore } from "@/store/useAuthStore";
 import useApi from "@/hooks/useApi";
 import { Loader2, Flag, Handshake, ArrowLeft, Share2 } from "lucide-react";
 import PlayerCard from "./PlayerCard";
-import GameHistoryTable from "./GameHistoryTable";
-import GameHistoryBar from "./GameHistoryBar";
+import MoveHistoryTable from "./MoveHistoryTable";
+import MoveHistoryBar from "./MoveHistoryBar";
 import GameChessboard from "./GameChessboard";
 import { playMoveSound, playCaptureSound, playCheckSound, playGameOverSound } from "@/lib/audio";
 import { calculateCapturedPieces } from "@/lib/chess";
+import { useGameMoves } from "@/hooks/useGameMoves";
 
 interface GameStatus {
     fen: string;
@@ -171,80 +169,18 @@ export default function GameRoom() {
         historyEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [moveList]);
 
+    const handleRemoteMove = useCallback((result: any) => {
+        setPosition(game.fen());
+        setTurn(game.turn() as "w" | "b");
+        setMoveList((prev) => [...prev, result.san]);
+        setMoveFrom("");
+        setOptionSquares({});
+    }, [game]);
+
+    useGameMoves(gameId, game, handleRemoteMove, isWhite);
+
     useEffect(() => {
         if (!client || !isConnected || !gameId) return;
-
-        const moveSub = client.subscribe(
-            `/topic/game/${gameId}/move`,
-            (message: { body: string }) => {
-                try {
-                    const incomingMove = message.body;
-
-                    // Defensive parsing of UCI strings and serialized JSON objects
-                    let targetMove: any = incomingMove;
-                    if (typeof incomingMove === "string" && incomingMove.trim().startsWith("{")) {
-                        try {
-                            const obj = JSON.parse(incomingMove);
-                            if (obj.from && obj.to) {
-                                targetMove = {
-                                    from: obj.from,
-                                    to: obj.to,
-                                    promotion: obj.promotion || undefined
-                                };
-                            }
-                        } catch (err) {
-                            console.error("Defensive move JSON parse error:", err);
-                        }
-                    }
-
-                    // Prevent duplicate move application by comparing with local history
-                    const movesHistory = game.history({ verbose: true });
-                    const lastMove = movesHistory[movesHistory.length - 1];
-                    if (lastMove) {
-                        const lastUciMove = lastMove.from + lastMove.to + (lastMove.promotion || "");
-                        const incomingUciString = typeof targetMove === "string"
-                            ? targetMove
-                            : (targetMove.from + targetMove.to + (targetMove.promotion || ""));
-
-                        if (lastUciMove === incomingUciString) {
-                            return; // Already applied locally!
-                        }
-                    }
-
-                    const result = game.move(targetMove);
-                    if (result) {
-                        setPosition(game.fen());
-                        setTurn(game.turn() as "w" | "b");
-                        setMoveList((prev) => [...prev, result.san]);
-                        setMoveFrom("");
-                        setOptionSquares({});
-
-                        // Play sound for incoming remote move
-                        if (game.isGameOver()) {
-                            if (game.isCheckmate()) {
-                                if (!gameOverSoundPlayedRef.current) {
-                                    playGameOverSound("lose"); // Opponent checkmated us
-                                    gameOverSoundPlayedRef.current = true;
-                                }
-                            } else {
-                                if (!gameOverSoundPlayedRef.current) {
-                                    playGameOverSound("draw");
-                                    gameOverSoundPlayedRef.current = true;
-                                }
-                            }
-                        } else if (game.inCheck()) {
-                            playCheckSound();
-                        } else if (result.captured) {
-                            playCaptureSound();
-                        } else {
-                            playMoveSound();
-                        }
-                    }
-                } catch (e) {
-                    console.error("Move application error:", e);
-                }
-            },
-        );
 
         const eventSub = client.subscribe(
             `/topic/game/${gameId}/event`,
@@ -280,11 +216,10 @@ export default function GameRoom() {
         );
 
         return () => {
-            moveSub.unsubscribe();
             eventSub.unsubscribe();
             drawSub.unsubscribe();
         };
-    }, [client, isConnected, gameId, game, isWhite]);
+    }, [client, isConnected, gameId, isWhite]);
 
     const isPlayerTurn = () => {
         const currentTurn = game.turn();
@@ -464,10 +399,6 @@ export default function GameRoom() {
 
     const { whiteCaptured, blackCaptured, whiteAdvantage, blackAdvantage } = calculateCapturedPieces(game);
 
-    const movePairs = [];
-    for (let i = 0; i < moveList.length; i += 2)
-        movePairs.push({ w: moveList[i], b: moveList[i + 1] });
-
     const topPlayerTimer = isWhite ? blackTime : whiteTime;
     const bottomPlayerTimer = isWhite ? whiteTime : blackTime;
     const bottomPlayerName = username || "You";
@@ -535,7 +466,7 @@ export default function GameRoom() {
                     />
 
                     {/* Compact Moves Ribbon */}
-                    <GameHistoryBar moves={moveList} />
+                    <MoveHistoryBar moves={moveList} />
 
                     {/* Board container */}
                     <div className="w-full aspect-square rounded-lg border-2 border-border/80 shadow-xl dark:shadow-primary/5 relative overflow-hidden">
@@ -623,7 +554,7 @@ export default function GameRoom() {
                     </div>
 
                     {/* Match Timeline Card */}
-                    <GameHistoryTable moves={moveList} />
+                    <MoveHistoryTable moves={moveList} historyEndRef={historyEndRef} />
 
                     {/* Compact Controls */}
                     <div className="flex gap-2 shrink-0">
