@@ -51,7 +51,7 @@ export default function ReviewRoom() {
             if (!gameId) return;
             try {
                 const status: any = await get(
-                    `/game/${gameId}/history`,
+                    `/games/${gameId}`,
                 );
 
                 console.log("Review room: Game history loaded:", status);

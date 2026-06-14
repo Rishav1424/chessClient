@@ -18,7 +18,7 @@ export default function SignupForm() {
     const [email, setEmail] = useState<string>("");
     const [password, setPassword] = useState<string>("");
     const [confirmPassword, setConfirmPassword] = useState<string>("");
-    const { post, data, error } = useApi();
+    const { post, data } = useApi();
     const navigate = useNavigate();
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -36,14 +36,11 @@ export default function SignupForm() {
     };
 
     useEffect(() => {
-        if (error) {
-            toast.error(error);
-        }
-        else if (data) {
+        if (data) {
             toast.success("Account created successfully! Please log in.");
             navigate("/login");
         }
-    }, [data, error, navigate]);
+    }, [data, navigate]);
 
     return (
         <div className="bg-muted/30 dark:bg-background/95 flex min-h-svh flex-col items-center justify-center p-6 md:p-10">

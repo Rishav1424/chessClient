@@ -42,9 +42,17 @@ export default function Dashboard() {
         setIsLoadingData(true);
         try {
             const fetchedStats = await get<UserStats>("/users/me/stats");
-            const fetchedGames = await get<PastGame[]>("/users/me/games");
+            interface GetGamesResponse {
+                items: PastGame[];
+                page: {
+                    limit: number;
+                    offset: number;
+                    total: number;
+                };
+            }
+            const fetchedGames = await get<GetGamesResponse>("/users/me/games");
             if (fetchedStats) setStats(fetchedStats);
-            if (fetchedGames) setGames(fetchedGames);
+            if (fetchedGames && fetchedGames.items) setGames(fetchedGames.items);
         } catch (err) {
             console.error("Error loading dashboard data:", err);
         } finally {
@@ -61,7 +69,7 @@ export default function Dashboard() {
         if (!client || !isConnected || !isFindingMatch) return;
 
         const subscription = client.subscribe(
-            "/user/queue/match-making",
+            "/user/queue/matchmaking",
             (message: { body: string }) => {
                 const data = JSON.parse(message.body);
                 setIsFindingMatch(false);
@@ -86,7 +94,7 @@ export default function Dashboard() {
         }
         setIsFindingMatch(true);
         client?.publish({
-            destination: "/app/match-making/join",
+            destination: "/app/matchmaking/join",
         });
     };
 
@@ -95,7 +103,7 @@ export default function Dashboard() {
         if (!client) return;
 
         client.publish({
-            destination: "/app/match-making/cancel",
+            destination: "/app/matchmaking/cancel",
         });
     };
 

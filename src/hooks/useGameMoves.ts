@@ -21,25 +21,22 @@ export function useGameMoves(
         if (!client || !isConnected || !gameId) return;
 
         const moveSub = client.subscribe(
-            `/topic/game/${gameId}/move`,
+            `/topic/games/${gameId}/moves`,
             (message: { body: string }) => {
                 try {
-                    const incomingMove = message.body;
+                    const data = JSON.parse(message.body);
+                    const incomingMove = data.move;
 
                     // Defensive parsing of UCI strings and serialized JSON objects
                     let targetMove: any = incomingMove;
-                    if (typeof incomingMove === "string" && incomingMove.trim().startsWith("{")) {
-                        try {
-                            const obj = JSON.parse(incomingMove);
-                            if (obj.from && obj.to) {
-                                targetMove = {
-                                    from: obj.from,
-                                    to: obj.to,
-                                    promotion: obj.promotion || undefined
-                                };
-                            }
-                        } catch (err) {
-                            console.error("Defensive move JSON parse error:", err);
+                    if (typeof incomingMove === "string") {
+                        const trimmed = incomingMove.trim();
+                        if (trimmed.length >= 4 && trimmed.length <= 5) {
+                            targetMove = {
+                                from: trimmed.substring(0, 2),
+                                to: trimmed.substring(2, 4),
+                                promotion: trimmed.length === 5 ? trimmed.charAt(4) : undefined
+                            };
                         }
                     }
 

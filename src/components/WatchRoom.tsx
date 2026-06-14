@@ -5,16 +5,12 @@ import { Button } from "@/components/ui/button";
 import {
     Dialog,
     DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-    DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSocketStore } from "@/store/useSocketStore";
 import useApi from "@/hooks/useApi";
-import { Loader2, ArrowLeft, Share2, RefreshCw, Eye } from "lucide-react";
+import { Loader2, ArrowLeft, Share2, RefreshCw, Eye, Trophy, Swords } from "lucide-react";
 import PlayerCard from "./PlayerCard";
 import MoveHistoryTable from "./MoveHistoryTable";
 import MoveHistoryBar from "./MoveHistoryBar";
@@ -26,8 +22,8 @@ import { useCallback } from "react";
 
 interface GameStatus {
     fen: string;
-    whitePlayer: string;
-    blackPlayer: string;
+    whitePlayerName: string;
+    blackPlayerName: string;
     whiteTime: string;
     blackTime: string;
     moves: string[];
@@ -86,7 +82,6 @@ export default function WatchRoom() {
     const [blackTime, setBlackTime] = useState(0);
 
     const [dialogOpen, setDialogOpen] = useState(false);
-    const [dialogTitle, setDialogTitle] = useState("");
     const [dialogDescription, setDialogDescription] = useState("");
 
     const isMobile = useIsMobile();
@@ -97,7 +92,7 @@ export default function WatchRoom() {
             if (!gameId) return;
             try {
                 const status: GameStatus | null = await get(
-                    `/game/${gameId}/status`,
+                    `/games/${gameId}/live`,
                 );
 
                 console.log("Watch room: Game status loaded:", status);
@@ -107,8 +102,8 @@ export default function WatchRoom() {
                     setPosition(game.fen());
                     setTurn(game.turn() as "w" | "b");
 
-                    setWhitePlayerName(status.whitePlayer);
-                    setBlackPlayerName(status.blackPlayer);
+                    setWhitePlayerName(status.whitePlayerName);
+                    setBlackPlayerName(status.blackPlayerName);
 
                     setWhiteTime(parseISODuration(status.whiteTime));
                     setBlackTime(parseISODuration(status.blackTime));
@@ -118,7 +113,6 @@ export default function WatchRoom() {
                     if (game.isGameOver()) {
                         setGameOver(true);
                         gameOverSoundPlayedRef.current = true;
-                        setDialogTitle("Game Over");
                         if (game.isCheckmate()) {
                             const winner = game.turn() === "w" ? "Black" : "White";
                             setDialogDescription(`Checkmate! Winner: ${winner}`);
@@ -165,17 +159,34 @@ export default function WatchRoom() {
         if (!client || !isConnected || !gameId) return;
 
         const eventSub = client.subscribe(
-            `/topic/game/${gameId}/event`,
+            `/topic/games/${gameId}/events`,
             (message: { body: string }) => {
-                setGameOver(true);
-                setDialogTitle("Game Over");
-                setDialogDescription(formatEventString(message.body));
-                setDialogOpen(true);
+                try {
+                    const event = JSON.parse(message.body);
+                    switch (event.type) {
+                        case "GAME_OVER":
+                            setGameOver(true);
+                            setDialogDescription(formatEventString(event.status));
+                            setDialogOpen(true);
 
-                // Play game over sound based on event outcome
-                if (!gameOverSoundPlayedRef.current) {
-                    playGameOverSound("draw");
-                    gameOverSoundPlayedRef.current = true;
+                            // Play game over sound based on event outcome
+                            if (!gameOverSoundPlayedRef.current) {
+                                playGameOverSound("draw");
+                                gameOverSoundPlayedRef.current = true;
+                            }
+                            break;
+                        case "DRAW_OFFERED":
+                            toast.info(`Draw offered by ${formatEventString(event.by)}.`);
+                            break;
+                        case "DRAW_DECLINED":
+                            toast.info(`Draw offer declined by ${formatEventString(event.by)}.`);
+                            break;
+                        case "DRAW_EXPIRED":
+                            toast.info("Draw offer expired.");
+                            break;
+                    }
+                } catch (err) {
+                    console.error("Error parsing game event in WatchRoom:", err);
                 }
             },
         );
@@ -384,21 +395,63 @@ export default function WatchRoom() {
 
             {/* Dialogs */}
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>{dialogTitle}</DialogTitle>
-                        <DialogDescription>
-                            {dialogDescription}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button
-                            size="lg"
-                            onClick={() => navigate("/dashboard")}>
-                            <ArrowLeft className="w-5 h-5 ml-2" />
-                            Exit to Dashboard
-                        </Button>
-                    </DialogFooter>
+                <DialogContent className="sm:max-w-md border border-border/50 bg-card/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 overflow-hidden relative">
+                    <div className="absolute -inset-10 bg-radial from-amber-500/15 to-transparent blur-3xl pointer-events-none" />
+
+                    <div className="flex flex-col items-center text-center gap-5 relative z-10">
+                        {/* Dynamic Icon Header */}
+                        <div className="w-16 h-16 rounded-2xl flex items-center justify-center border animate-bounce bg-amber-500/10 border-amber-500/30 text-amber-500">
+                            {dialogDescription.toLowerCase().includes("checkmate") ? (
+                                <Trophy className="w-8 h-8" />
+                            ) : (
+                                <Swords className="w-8 h-8" />
+                            )}
+                        </div>
+
+                        <div>
+                            <h2 className="text-2xl font-black uppercase tracking-wider text-amber-500">
+                                Match Finished
+                            </h2>
+                            <p className="text-muted-foreground text-sm font-semibold mt-1 font-sans">
+                                {dialogDescription}
+                            </p>
+                        </div>
+
+                        {/* Game Statistics Panel */}
+                        <div className="w-full bg-muted/40 rounded-xl p-4 border border-border/40 text-left flex flex-col gap-2">
+                            <div className="flex justify-between text-xs font-semibold">
+                                <span className="text-muted-foreground">Total Moves Played:</span>
+                                <span className="text-foreground font-mono">{moveList.length}</span>
+                            </div>
+                            <div className="flex justify-between text-xs font-semibold">
+                                <span className="text-muted-foreground">White Player:</span>
+                                <span className="text-foreground truncate max-w-[150px]">{whitePlayerName}</span>
+                            </div>
+                            <div className="flex justify-between text-xs font-semibold">
+                                <span className="text-muted-foreground">Black Player:</span>
+                                <span className="text-foreground truncate max-w-[150px]">{blackPlayerName}</span>
+                            </div>
+                        </div>
+
+                        {/* Navigation Actions */}
+                        <div className="flex flex-col sm:flex-row gap-3 w-full mt-2">
+                            <Button
+                                size="lg"
+                                className="flex-1 font-bold cursor-pointer"
+                                onClick={() => navigate(`/review/${gameId}`)}
+                            >
+                                Analyze Game
+                            </Button>
+                            <Button
+                                size="lg"
+                                variant="outline"
+                                className="flex-1 font-bold cursor-pointer"
+                                onClick={() => navigate("/dashboard")}
+                            >
+                                <ArrowLeft className="w-4 h-4 mr-1.5" /> Dashboard
+                            </Button>
+                        </div>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>

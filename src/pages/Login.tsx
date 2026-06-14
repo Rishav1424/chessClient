@@ -18,20 +18,25 @@ export default function LoginForm() {
     const [username, setUsername] = useState<string>("");
     const [password, setPassword] = useState<string>("");
     const login = useAuthStore((state) => state.login);
-    const { post, error } = useApi();
+    const { post } = useApi();
     const navigate = useNavigate();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const response: string | null = await post("/auth/login", {
+        interface LoginResponse {
+            token: string;
+            user: {
+                username: string;
+            };
+        }
+        const response = await post<LoginResponse>("/auth/login", {
             username,
             password,
         });
         if (!response) {
-            toast.error(error);
             return;
         }
-        login(response, username);
+        login(response.token, response.user.username);
         toast.success("Logged in successfully!");
         navigate("/dashboard");
     };

@@ -9,14 +9,13 @@ import {
     DialogHeader,
     DialogTitle,
     DialogDescription,
-    DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSocketStore } from "@/store/useSocketStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import useApi from "@/hooks/useApi";
-import { Loader2, Flag, Handshake, ArrowLeft, Share2 } from "lucide-react";
+import { Loader2, Flag, Handshake, ArrowLeft, Share2, Trophy, Skull, Swords } from "lucide-react";
 import PlayerCard from "./PlayerCard";
 import MoveHistoryTable from "./MoveHistoryTable";
 import MoveHistoryBar from "./MoveHistoryBar";
@@ -24,14 +23,16 @@ import GameChessboard from "./GameChessboard";
 import { playMoveSound, playCaptureSound, playCheckSound, playGameOverSound } from "@/lib/audio";
 import { calculateCapturedPieces } from "@/lib/chess";
 import { useGameMoves } from "@/hooks/useGameMoves";
+import ConfettiEffect from "./ConfettiEffect";
 
 interface GameStatus {
     fen: string;
-    whitePlayer: string;
-    blackPlayer: string;
+    whitePlayerName: string;
+    blackPlayerName: string;
     whiteTime: string;
     blackTime: string;
     moves: string[];
+    pendingDrawOffer: string | null;
 }
 
 
@@ -76,6 +77,7 @@ export default function GameRoom() {
     const [position, setPosition] = useState<string>(game.fen());
     const [isWhite, setIsWhite] = useState<boolean>(true);
     const [gameOver, setGameOver] = useState<boolean>(false);
+    const [outcome, setOutcome] = useState<"win" | "lose" | "draw" | "unknown">("unknown");
     const [loading, setLoading] = useState<boolean>(true);
     const [turn, setTurn] = useState<"w" | "b">("w");
     const [moveList, setMoveList] = useState<string[]>([]);
@@ -93,7 +95,6 @@ export default function GameRoom() {
     const [blackTime, setBlackTime] = useState(0);
 
     const [dialogOpen, setDialogOpen] = useState(false);
-    const [dialogTitle, setDialogTitle] = useState("");
     const [dialogDescription, setDialogDescription] = useState("");
     const [drawOfferOpen, setDrawOfferOpen] = useState(false);
 
@@ -105,7 +106,7 @@ export default function GameRoom() {
             if (!gameId) return;
             try {
                 const status: GameStatus | null = await get(
-                    `/game/${gameId}/status`,
+                    `/games/${gameId}/live`,
                 );
 
                 console.log("Game status loaded:", status);
@@ -115,11 +116,11 @@ export default function GameRoom() {
                     setPosition(game.fen());
                     setTurn(game.turn() as "w" | "b");
 
-                    setIsWhite(status.whitePlayer === username);
+                    setIsWhite(status.whitePlayerName === username);
                     setOpponentName(
-                        status.whitePlayer === username
-                            ? status.blackPlayer
-                            : status.whitePlayer,
+                        status.whitePlayerName === username
+                            ? status.blackPlayerName
+                            : status.whitePlayerName,
                     );
 
                     setWhiteTime(parseISODuration(status.whiteTime));
@@ -130,18 +131,29 @@ export default function GameRoom() {
                     if (game.isGameOver()) {
                         setGameOver(true);
                         gameOverSoundPlayedRef.current = true;
-                        setDialogTitle("Game Over");
                         if (game.isCheckmate()) {
-                            const winner = game.turn() === "w" ? "Black" : "White";
-                            setDialogDescription(`Checkmate! Winner: ${winner}`);
+                            const winnerIsWhite = game.turn() === "b";
+                            const weWon = winnerIsWhite === (status.whitePlayerName === username);
+                            setOutcome(weWon ? "win" : "lose");
+                            setDialogDescription(`Checkmate! Winner: ${winnerIsWhite ? "White" : "Black"}`);
                         } else if (game.isDraw()) {
+                            setOutcome("draw");
                             setDialogDescription("Draw!");
                         } else {
+                            setOutcome("draw");
                             setDialogDescription("Game Over");
                         }
                         setDialogOpen(true);
                     } else {
                         gameOverSoundPlayedRef.current = false;
+                        
+                        // Restore pending draw offer if applicable
+                        if (status.pendingDrawOffer) {
+                            const mySide = status.whitePlayerName === username ? "WHITE" : "BLACK";
+                            if (status.pendingDrawOffer === mySide) {
+                                setDrawOfferOpen(true);
+                            }
+                        }
                     }
                     setLoading(false);
                 } else {
@@ -183,41 +195,75 @@ export default function GameRoom() {
         if (!client || !isConnected || !gameId) return;
 
         const eventSub = client.subscribe(
-            `/topic/game/${gameId}/event`,
+            `/topic/games/${gameId}/events`,
             (message: { body: string }) => {
-                setGameOver(true);
-                setDialogTitle("Game Over");
-                setDialogDescription(formatEventString(message.body));
-                setDialogOpen(true);
+                try {
+                    const event = JSON.parse(message.body);
+                    const mySide = isWhite ? "WHITE" : "BLACK";
 
-                // Play game over sound based on event outcome
-                if (!gameOverSoundPlayedRef.current) {
-                    const eventStr = message.body.toUpperCase();
-                    if (eventStr.includes("DRAW")) {
-                        playGameOverSound("draw");
-                    } else if (eventStr.includes("WHITE_WON")) {
-                        playGameOverSound(isWhite ? "win" : "lose");
-                    } else if (eventStr.includes("BLACK_WON")) {
-                        playGameOverSound(!isWhite ? "win" : "lose");
-                    } else {
-                        playGameOverSound("draw");
+                    switch (event.type) {
+                        case "GAME_OVER":
+                            setGameOver(true);
+                            setDialogDescription(formatEventString(event.status));
+                            
+                            const eventStr = (event.status || "").toUpperCase();
+                            if (eventStr.includes("DRAW")) {
+                                setOutcome("draw");
+                            } else if (eventStr.includes("WHITE_WON") || eventStr.includes("WON_WHITE")) {
+                                setOutcome(isWhite ? "win" : "lose");
+                            } else if (eventStr.includes("BLACK_WON") || eventStr.includes("WON_BLACK")) {
+                                setOutcome(!isWhite ? "win" : "lose");
+                            } else {
+                                setOutcome("draw");
+                            }
+
+                            // Play game over sound based on event outcome
+                            if (!gameOverSoundPlayedRef.current) {
+                                if (eventStr.includes("DRAW")) {
+                                    playGameOverSound("draw");
+                                } else if (eventStr.includes("WHITE_WON") || eventStr.includes("WON_WHITE")) {
+                                    playGameOverSound(isWhite ? "win" : "lose");
+                                } else if (eventStr.includes("BLACK_WON") || eventStr.includes("WON_BLACK")) {
+                                    playGameOverSound(!isWhite ? "win" : "lose");
+                                } else {
+                                    playGameOverSound("draw");
+                                }
+                                gameOverSoundPlayedRef.current = true;
+                            }
+                            setDialogOpen(true);
+                            break;
+                        case "DRAW_OFFERED":
+                            if (event.by !== mySide) {
+                                setDrawOfferOpen(true);
+                                toast.success("Your opponent has offered a draw.");
+                            }
+                            break;
+                        case "DRAW_DECLINED":
+                            if (event.by !== mySide) {
+                                toast.info("Draw offer declined by opponent.");
+                            }
+                            break;
+                        case "DRAW_EXPIRED":
+                            setDrawOfferOpen(false);
+                            toast.info("Draw offer expired.");
+                            break;
                     }
-                    gameOverSoundPlayedRef.current = true;
+                } catch (err) {
+                    console.error("Error handling game event:", err);
                 }
             },
         );
 
-        const drawSub = client.subscribe(
-            `/user/queue/game/${gameId}/draw-offer`,
-            () => {
-                setDrawOfferOpen(true);
-                toast.success("Your opponent has offered a draw.");
-            },
+        const errorSub = client.subscribe(
+            `/user/queue/errors`,
+            (message: { body: string }) => {
+                toast.error(message.body);
+            }
         );
 
         return () => {
             eventSub.unsubscribe();
-            drawSub.unsubscribe();
+            errorSub.unsubscribe();
         };
     }, [client, isConnected, gameId, isWhite]);
 
@@ -267,7 +313,7 @@ export default function GameRoom() {
 
             if (client && gameId) {
                 client.publish({
-                    destination: `/app/game/${gameId}/move`,
+                    destination: `/app/games/${gameId}/move`,
                     body: move.from + move.to + (move.promotion || ""),
                 });
             }
@@ -311,6 +357,10 @@ export default function GameRoom() {
     }: PieceDropHandlerArgs) => {
         console.log("Piece dropped from", sourceSquare, "to", targetSquare);
         if (gameOver || !isPlayerTurn() || !targetSquare) return false;
+        if (!client || !isConnected) {
+            toast.error("Connection lost. Move could not be sent.");
+            return false;
+        }
         return handleValidMove({
             from: sourceSquare,
             to: targetSquare,
@@ -330,6 +380,10 @@ export default function GameRoom() {
             isPlayerTurn(),
         );
         if (gameOver || !isPlayerTurn()) return;
+        if (!client || !isConnected) {
+            toast.error("Connection lost. Move could not be sent.");
+            return;
+        }
 
         // Select a piece if none is selected
         if (!moveFrom) {
@@ -362,18 +416,25 @@ export default function GameRoom() {
 
     const handleResign = () => {
         console.log("Resign button clicked");
-        if (client && gameId)
+        if (!client || !isConnected) {
+            toast.error("Connection lost. Resignation could not be submitted.");
+            return;
+        }
+        if (gameId) {
             client.publish({
-                destination: `/app/game/${gameId}/action`,
-                body: "RESIGN",
+                destination: `/app/games/${gameId}/resign`,
             });
+        }
     };
 
     const handleOfferDraw = () => {
-        if (client && gameId) {
+        if (!client || !isConnected) {
+            toast.error("Connection lost. Draw offer could not be sent.");
+            return;
+        }
+        if (gameId) {
             client.publish({
-                destination: `/app/game/${gameId}/action`,
-                body: "DRAW",
+                destination: `/app/games/${gameId}/draw/offer`,
             });
             toast.success("Draw offer sent");
         }
@@ -381,12 +442,29 @@ export default function GameRoom() {
 
     const handleAcceptDraw = () => {
         setDrawOfferOpen(false);
-        if (client && gameId) {
+        if (!client || !isConnected) {
+            toast.error("Connection lost. Draw offer could not be accepted.");
+            return;
+        }
+        if (gameId) {
             client.publish({
-                destination: `/app/game/${gameId}/action`,
-                body: "DRAW",
+                destination: `/app/games/${gameId}/draw/accept`,
             });
             toast.success("Draw offer accepted");
+        }
+    };
+
+    const handleDeclineDraw = () => {
+        setDrawOfferOpen(false);
+        if (!client || !isConnected) {
+            toast.error("Connection lost. Draw offer could not be declined.");
+            return;
+        }
+        if (gameId) {
+            client.publish({
+                destination: `/app/games/${gameId}/draw/decline`,
+            });
+            toast.info("Draw offer declined");
         }
     };
 
@@ -589,23 +667,86 @@ export default function GameRoom() {
                 </div>
             )}
 
+            {outcome === "win" && <ConfettiEffect />}
+
             {/* Dialogs */}
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>{dialogTitle}</DialogTitle>
-                        <DialogDescription>
-                            {dialogDescription}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button
-                            size="lg"
-                            onClick={() => navigate("/dashboard")}>
-                            <ArrowLeft className="w-5 h-5 ml-2" />
-                            Exit to Dashboard
-                        </Button>
-                    </DialogFooter>
+                <DialogContent className="sm:max-w-md border border-border/50 bg-card/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 overflow-hidden relative">
+                    {/* Decorative outcome-specific glowing background */}
+                    {outcome === "win" && (
+                        <div className="absolute -inset-10 bg-radial from-emerald-500/15 to-transparent blur-3xl pointer-events-none" />
+                    )}
+                    {outcome === "lose" && (
+                        <div className="absolute -inset-10 bg-radial from-destructive/15 to-transparent blur-3xl pointer-events-none" />
+                    )}
+                    {outcome === "draw" && (
+                        <div className="absolute -inset-10 bg-radial from-amber-500/15 to-transparent blur-3xl pointer-events-none" />
+                    )}
+
+                    <div className="flex flex-col items-center text-center gap-5 relative z-10">
+                        {/* Dynamic Icon Header */}
+                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border animate-bounce ${
+                            outcome === "win" 
+                                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500" 
+                                : outcome === "lose" 
+                                ? "bg-destructive/10 border-destructive/30 text-destructive" 
+                                : "bg-amber-500/10 border-amber-500/30 text-amber-500"
+                        }`}>
+                            {outcome === "win" && <Trophy className="w-8 h-8" />}
+                            {outcome === "lose" && <Skull className="w-8 h-8" />}
+                            {outcome === "draw" && <Swords className="w-8 h-8" />}
+                        </div>
+
+                        <div>
+                            <h2 className={`text-2xl font-black uppercase tracking-wider ${
+                                outcome === "win" 
+                                    ? "text-emerald-500" 
+                                    : outcome === "lose" 
+                                    ? "text-destructive" 
+                                    : "text-amber-500"
+                            }`}>
+                                {outcome === "win" ? "Victory!" : outcome === "lose" ? "Defeat" : "Draw Match"}
+                            </h2>
+                            <p className="text-muted-foreground text-sm font-semibold mt-1">
+                                {dialogDescription}
+                            </p>
+                        </div>
+
+                        {/* Game Statistics Panel */}
+                        <div className="w-full bg-muted/40 rounded-xl p-4 border border-border/40 text-left flex flex-col gap-2">
+                            <div className="flex justify-between text-xs font-semibold">
+                                <span className="text-muted-foreground">Total Moves Played:</span>
+                                <span className="text-foreground font-mono">{moveList.length}</span>
+                            </div>
+                            <div className="flex justify-between text-xs font-semibold">
+                                <span className="text-muted-foreground">White Player:</span>
+                                <span className="text-foreground truncate max-w-[150px]">{isWhite ? bottomPlayerName : opponentName}</span>
+                            </div>
+                            <div className="flex justify-between text-xs font-semibold">
+                                <span className="text-muted-foreground">Black Player:</span>
+                                <span className="text-foreground truncate max-w-[150px]">{isWhite ? opponentName : bottomPlayerName}</span>
+                            </div>
+                        </div>
+
+                        {/* Navigation Actions */}
+                        <div className="flex flex-col sm:flex-row gap-3 w-full mt-2">
+                            <Button
+                                size="lg"
+                                className="flex-1 font-bold cursor-pointer"
+                                onClick={() => navigate(`/review/${gameId}`)}
+                            >
+                                Analyze Game
+                            </Button>
+                            <Button
+                                size="lg"
+                                variant="outline"
+                                className="flex-1 font-bold cursor-pointer"
+                                onClick={() => navigate("/dashboard")}
+                            >
+                                <ArrowLeft className="w-4 h-4 mr-1.5" /> Dashboard
+                            </Button>
+                        </div>
+                    </div>
                 </DialogContent>
             </Dialog>
 
@@ -629,7 +770,7 @@ export default function GameRoom() {
                         </Button>
                         <Button
                             size="lg"
-                            onClick={() => setDrawOfferOpen(false)}
+                            onClick={handleDeclineDraw}
                             variant="secondary"
                             className="flex-1 font-bold">
                             Decline
