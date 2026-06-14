@@ -9,7 +9,7 @@ interface GeneratedAvatarProps extends React.ComponentPropsWithoutRef<typeof Ava
 const GeneratedAvatar = forwardRef<HTMLDivElement, GeneratedAvatarProps>(
     ({ seed = 'Alice', className, ...props }, ref) => {
         const avatar = useMemo(() => {
-            const url = new URL('https://api.dicebear.com/10.x/adventurer/svg');
+            const url = new URL('https://api.dicebear.com/10.x/adventurer-neutral/svg');
             url.searchParams.set('seed', seed);
             url.searchParams.set('size', '128');
             return url.href;
